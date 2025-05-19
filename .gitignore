@@ -172,3 +172,14 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+Group Project Proposal.md
+Group Project Proposal.pdf
+.gitignore
+.idea
+test_ical.py
+Project Proposal Requirements - Chatbot.docx
+config.json
+__pycache__
+

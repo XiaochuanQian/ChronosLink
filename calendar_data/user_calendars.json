@@ -1,0 +1,54 @@
+{
+  "default": {
+    "events": {
+      "0ea6d5cb-e976-437d-8d14-57420b952f16": {
+        "id": "0ea6d5cb-e976-437d-8d14-57420b952f16",
+        "title": "Meeting with William",
+        "start_time": "2025-05-20T21:00:00",
+        "end_time": "2025-05-20T23:00:00",
+        "calendar_type": "personal",
+        "location": "",
+        "description": "Discussion with William.",
+        "attendees": [
+          "William"
+        ],
+        "reminders": [],
+        "recurring": {}
+      },
+      "0d625aa8-0e3e-4bd9-9386-17a653a27e4f": {
+        "id": "0d625aa8-0e3e-4bd9-9386-17a653a27e4f",
+        "title": "Meeting with Michael and Xiaochuan",
+        "start_time": "2025-05-20T11:00:00",
+        "end_time": "2025-05-20T12:00:00",
+        "calendar_type": "personal",
+        "location": "",
+        "description": "Discussion with Michael and Xiaochuan.",
+        "attendees": [
+          "Michael",
+          "xiaochuan"
+        ],
+        "reminders": [],
+        "recurring": {}
+      },
+      "9d0b8579-0f5a-441d-9411-8d39a1bc8711": {
+        "id": "9d0b8579-0f5a-441d-9411-8d39a1bc8711",
+        "title": "Meeting with William",
+        "start_time": "2025-05-21T10:00:00",
+        "end_time": "2025-05-21T11:00:00",
+        "calendar_type": "personal",
+        "location": "",
+        "description": "Align progress for the project.",
+        "attendees": [
+          "William",
+          "Michael"
+        ],
+        "reminders": [],
+        "recurring": {}
+      }
+    },
+    "calendars": [
+      "personal",
+      "work"
+    ]
+  }
+}
