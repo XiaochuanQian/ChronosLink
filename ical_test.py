@@ -19,9 +19,6 @@ APPLE_ID = config.get('calendar', {}).get('apple_id')
 APPLE_PASSWORD = config.get('calendar', {}).get('apple_password')
 CALENDAR_URL = config.get('calendar', {}).get('calendar_url')
 
-# APPLE_ID = "xiaochuanqian@icloud.com"
-# APPLE_PASSWORD = "pyle-zmcg-fqig-ihpp"
-# CALENDAR_URL = 'https://caldav.icloud.com'  # We'll use the base URL
 
 
 def get_caldav_client():
