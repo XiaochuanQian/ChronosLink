@@ -6,6 +6,7 @@ on:
       - main  # 或者您的默认分支名称
   workflow_dispatch:
 
+# 使用标准权限
 permissions:
   contents: read
   pages: write
@@ -23,8 +24,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v4
-        with:
-          enablement: true
+        # 移除enablement参数，假设Pages已在仓库设置中启用
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
