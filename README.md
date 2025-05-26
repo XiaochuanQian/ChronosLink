@@ -2,6 +2,8 @@
 
 ChronosLink is an AI-powered calendar management assistant that helps you manage your schedule through natural language conversations. It features voice chat capabilities for a more interactive experience.
 
+**PS. This is only a proof of concept version, use at your own risk.**
+
 ![image](/images/Screenshot%202025-05-26%20at%2017.11.45.png)
 
 ## Features
@@ -76,3 +78,8 @@ ChronosLink supports multiple users with separate calendars:
 ## Data Storage
 
 Calendar data is stored locally in the `calendar_data` directory. Conversation history is maintained using LangGraph's MemorySaver for persistence across sessions. 
+
+## Contributing
+Contributions are welcome! If you have suggestions or improvements, please open an issue or submit a pull request.
+## License
+This project is licensed under the CC BY-NC 4.0 License. See the [LICENSE](LICENSE) file for details.
