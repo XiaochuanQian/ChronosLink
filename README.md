@@ -6,6 +6,8 @@ ChronosLink is an AI-powered calendar management assistant that helps you manage
 
 ![image](/images/Screenshot%202025-05-26%20at%2017.11.45.png)
 
+📱 **[查看项目网站](https://username.github.io/ChronosLink/)** - 访问我们的GitHub Pages网站了解更多信息
+
 ## Features
 
 - Create, update, and delete calendar events using natural language

@@ -1,0 +1,6 @@
+theme: jekyll-theme-cayman
+title: ChronosLink - Smart Scheduler Assistant
+description: Manage your schedule through natural language conversations with voice chat capabilities for a more interactive experience.
+show_downloads: true
+github:
+  repository_url: https://github.com/XiaochuanQian/ChronosLink 

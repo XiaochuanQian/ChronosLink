@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChronosLink - Smart Scheduler Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap">
+</head>
+<body>
+    <nav>
+        <div class="logo">
+            <i class="fas fa-calendar-alt"></i>
+            <span>ChronosLink</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#setup">Setup</a></li>
+            <li><a href="#voice">Voice Chat</a></li>
+            <li><a href="#users">Multi-User</a></li>
+            <li><a href="https://github.com/XiaochuanQian/ChronosLink" target="_blank" class="github-btn"><i class="fab fa-github"></i> GitHub</a></li>
+        </ul>
+    </nav>
+
+    <section class="hero" id="home">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="typing">ChronosLink</h1>
+                <h2>AI-Powered Smart Scheduler Assistant</h2>
+                <p>Manage your schedule through natural language conversations with voice chat capabilities for a more interactive experience.</p>
+                <div class="cta-buttons">
+                    <a href="#setup" class="btn primary">Get Started</a>
+                    <a href="#demo" class="btn secondary">See Demo</a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="https://raw.githubusercontent.com/XiaochuanQian/ChronosLink/main/images/Screenshot%202025-05-26%20at%2019.06.05.png" alt="ChronosLink Interface">
+            </div>
+        </div>
+    </section>
+
+    <section id="demo" class="demo">
+        <div class="container">
+            <h2>Smart Calendar Management at Your Fingertips</h2>
+            <div class="demo-img">
+                <img src="https://raw.githubusercontent.com/XiaochuanQian/ChronosLink/main/images/Screenshot%202025-05-26%20at%2017.11.45.png" alt="ChronosLink Demo">
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Key Features</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-calendar-plus"></i></div>
+                    <h3>Smart Event Management</h3>
+                    <p>Create, update, and delete calendar events using natural language</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-search"></i></div>
+                    <h3>Free Time Finder</h3>
+                    <p>Find available time slots for meetings and appointments</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-calendar-week"></i></div>
+                    <h3>Multiple Views</h3>
+                    <p>View daily, weekly, or monthly schedules</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-users"></i></div>
+                    <h3>Multi-User Support</h3>
+                    <p>Support for multiple users with separate calendars</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-microphone"></i></div>
+                    <h3>Voice Interaction</h3>
+                    <p>Voice chat capabilities (speech-to-text and text-to-speech)</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-history"></i></div>
+                    <h3>Conversation History</h3>
+                    <p>Persistent conversation history using LangGraph's MemorySaver</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="setup" class="setup">
+        <div class="container">
+            <h2>Setup Guide</h2>
+            <div class="setup-steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Clone Repository</h3>
+                        <div class="code-block">
+                            <code>git clone https://github.com/XiaochuanQian/ChronosLink.git</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Install Dependencies</h3>
+                        <div class="code-block">
+                            <code>pip install zmail caldav gradio langchain langgraph langchain-openai openai azure-cognitiveservices-speech pydantic</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Configure API Keys</h3>
+                        <p>Create a <code>config.json</code> file with necessary API keys</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Run Application</h3>
+                        <div class="code-block">
+                            <code>python main.py</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="voice" class="voice">
+        <div class="container">
+            <h2>Voice Chat Features</h2>
+            <div class="voice-features">
+                <div class="voice-feature">
+                    <div class="voice-icon"><i class="fas fa-microphone-alt"></i></div>
+                    <h3>Speech-to-Text</h3>
+                    <p>Record your voice message using the microphone input</p>
+                </div>
+                <div class="voice-feature">
+                    <div class="voice-icon"><i class="fas fa-volume-up"></i></div>
+                    <h3>Text-to-Speech</h3>
+                    <p>Enable voice output to hear the assistant's responses</p>
+                </div>
+            </div>
+            <div class="voice-steps">
+                <h3>How to Use Voice Features:</h3>
+                <ol>
+                    <li>Check "Enable Voice Output" to hear the assistant's responses</li>
+                    <li>Select a voice type from the dropdown menu</li>
+                    <li>Use the microphone input to record your voice message</li>
+                    <li>Click "Send Voice Message" to send your recorded message</li>
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <section id="users" class="users">
+        <div class="container">
+            <h2>Multi-User Support</h2>
+            <p>ChronosLink supports multiple users with separate calendars:</p>
+            <div class="user-steps">
+                <ol>
+                    <li>Enter a user ID in the "User ID" field</li>
+                    <li>Click "Login" to switch to that user's calendar</li>
+                    <li>Each user's calendar data and conversation history are stored separately</li>
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>ChronosLink</span>
+                </div>
+                <div class="footer-links">
+                    <a href="#home">Home</a>
+                    <a href="#features">Features</a>
+                    <a href="#setup">Setup</a>
+                    <a href="#voice">Voice Chat</a>
+                    <a href="#users">Multi-User</a>
+                </div>
+                <div class="footer-social">
+                    <a href="https://github.com/XiaochuanQian/ChronosLink" target="_blank"><i class="fab fa-github"></i></a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 ChronosLink. This project is licensed under <a href="https://github.com/XiaochuanQian/ChronosLink/blob/main/LICENSE">CC BY-NC 4.0 License</a>.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html> 
