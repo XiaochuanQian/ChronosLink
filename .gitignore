@@ -182,4 +182,4 @@ test_ical.py
 Project Proposal Requirements - Chatbot.docx
 config.json
 __pycache__
-
+.DS_Store
