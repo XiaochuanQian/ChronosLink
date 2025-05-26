@@ -418,6 +418,8 @@ nav.scrolled {
 
 .step-content {
     flex-grow: 1;
+    max-width: 100%; /* 确保不超出父容器宽度 */
+    overflow: hidden; /* 防止内容溢出 */
 }
 
 .code-block {
@@ -427,11 +429,16 @@ nav.scrolled {
     border-radius: 8px;
     overflow-x: auto;
     margin-top: 10px;
+    max-width: 100%; /* 确保不超出父容器宽度 */
+    word-break: break-word; /* 允许长单词在必要时断行 */
 }
 
 .code-block code {
     color: #f8f8f2;
     font-family: 'Fira Code', monospace;
+    white-space: pre-wrap; /* 保持代码格式但允许换行 */
+    display: block; /* 确保代码块占据整个宽度 */
+    width: 100%; /* 设置宽度为100% */
 }
 
 .copy-btn {
@@ -646,6 +653,15 @@ footer {
     
     .footer-links {
         justify-content: center;
+    }
+    
+    .code-block {
+        padding: 12px;
+        font-size: 0.9rem;
+    }
+    
+    .step-content {
+        width: 100%;
     }
 }
 
