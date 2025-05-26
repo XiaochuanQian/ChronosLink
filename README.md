@@ -2,6 +2,8 @@
 
 ChronosLink is an AI-powered calendar management assistant that helps you manage your schedule through natural language conversations. It features voice chat capabilities for a more interactive experience.
 
+![image](/images/Screenshot%202025-05-26%20at%2017.11.45.png)
+
 ## Features
 
 - Create, update, and delete calendar events using natural language
@@ -16,19 +18,34 @@ ChronosLink is an AI-powered calendar management assistant that helps you manage
 1. Clone this repository
 2. Install dependencies:
    ```
-   pip install -r requirements.txt
+   pip install zmail caldav gradio langchain langgraph langchain-openai openai azure-cognitiveservices-speech pydantic
    ```
 3. Set up your API keys:
-   - OpenAI API key for text-to-speech
-   - Azure Speech Services for speech-to-text
+   - Create a json file ```config.json```
 
-4. Update the API keys in the `voice_utils.py` file:
    ```python
-   # Replace with your actual API keys
-   OPENAI_API_KEY = "your_openai_api_key"
-   AZURE_SPEECH_KEY = "your_azure_speech_key"
-   AZURE_SPEECH_REGION = "your_azure_region"
+   {
+    "openai": {
+        "api_key": "your-api-key",
+        "api_base_url": "your-base-url" #https://api.openai.com
+    },
+    "calendar": {
+        "apple_id": "your-icloud-email",
+        "apple_password": "your-app-specific-password",
+        "calendar_name": "the-calendar-name-you-want-to-use,
+        "calendar_url": "https://caldav.icloud.com"
+    },
+    "email": {
+        "sender_email": "your-sender-email",
+        "sender_password": "your-email-smtp-auth-code"
+    },
+    "azure": {
+        "speech_key": "your-azure-key",
+        "speech_region": "your-azure-region"
+    }
+   } 
    ```
+
 
 5. Run the application:
    ```
