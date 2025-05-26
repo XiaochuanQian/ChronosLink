@@ -1,10 +1,14 @@
 import uuid
 import datetime
+import base64
 from typing import List, Dict, Any, Optional
 import json
 from pydantic import BaseModel, Field
 import pytz
 import pathlib
+import os
+import mimetypes
+from io import BytesIO
 
 import gradio as gr
 from langchain_core.messages import HumanMessage, AIMessage
@@ -17,7 +21,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from typing import Annotated, TypedDict
 
 # Import voice utils
-from voice_utils import text_to_speech, speech_to_text, save_audio_to_temp_file, cleanup_temp_file
+from voice_utils import text_to_speech, speech_to_text, save_audio_to_temp_file, cleanup_temp_file, map_voice_style
 
 # Import email helper
 from email_helper import send_bulk_email
@@ -50,6 +54,9 @@ CALENDAR_NAME = config.get('calendar', {}).get('calendar_name')
 # Data persistence settings
 DATA_DIR = pathlib.Path("calendar_data")
 USER_DATA_FILE = DATA_DIR / "user_calendars.json"
+# Create a temporary directory for uploaded files
+TEMP_DIR = pathlib.Path("temp_uploads")
+TEMP_DIR.mkdir(exist_ok=True)
 
 # Create data directory if it doesn't exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -59,14 +66,62 @@ memory_saver = MemorySaver()
 
 # Initialize LLM model
 llm = init_chat_model(
-    model= "gpt-4o-mini-2024-07-18",
-    # model="qwen2.5:3b-mini-2024-07-18",
+    model="gpt-4o-ca",  # Using full GPT-4o for better multimodal support (images and PDFs)
     model_provider="openai",
     api_key=OPENAI_API_KEY,
     base_url=OPENAI_API_BASE_URL,
     temperature=0.0
 )
 
+# Utility function to encode file to base64
+def encode_file_to_base64(file_path):
+    with open(file_path, "rb") as file:
+        return base64.b64encode(file.read()).decode("utf-8")
+
+# Utility function to save uploaded file and return path
+def save_uploaded_file(file):
+    if file is None:
+        return None
+    
+    try:
+        # Create a unique filename
+        filename = f"{uuid.uuid4()}_{os.path.basename(file)}"
+        file_path = TEMP_DIR / filename
+        
+        # Save the file
+        with open(file_path, "wb") as f:
+            if isinstance(file, BytesIO):
+                f.write(file.getvalue())
+            else:
+                with open(file, "rb") as source_file:
+                    f.write(source_file.read())
+        
+        return str(file_path)
+    except Exception as e:
+        print(f"Error saving uploaded file: {str(e)}")
+        return None
+
+# Utility function to determine MIME type
+def get_mime_type(file_path):
+    if not file_path:
+        return None
+    
+    mime_type, _ = mimetypes.guess_type(file_path)
+    
+    # Default to application/octet-stream if type can't be determined
+    if mime_type is None:
+        mime_type = "application/octet-stream"
+    
+    return mime_type
+
+# Utility function to clean up temporary files
+def cleanup_temp_files(file_paths):
+    for file_path in file_paths:
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Error removing temporary file {file_path}: {str(e)}")
 
 # Utility functions for date and time handling
 def get_current_datetime(timezone_str: str = "UTC+8"):
@@ -181,11 +236,44 @@ class CalendarManager:
         
         # 同步到 iCloud
         try:
+            # 处理重复规则
+            rrule = None
+            if recurring:
+                # 将重复规则转换为 iCalendar RRULE 格式
+                if recurring.get('frequency') == 'daily':
+                    rrule = f"FREQ=DAILY"
+                elif recurring.get('frequency') == 'weekly':
+                    rrule = f"FREQ=WEEKLY"
+                elif recurring.get('frequency') == 'monthly':
+                    rrule = f"FREQ=MONTHLY"
+                elif recurring.get('frequency') == 'yearly':
+                    rrule = f"FREQ=YEARLY"
+                
+                # 添加间隔
+                if recurring.get('interval'):
+                    rrule += f";INTERVAL={recurring['interval']}"
+                
+                # 添加结束日期
+                if recurring.get('until'):
+                    until_date = recurring['until']
+                    if isinstance(until_date, str):
+                        until_date = datetime.datetime.fromisoformat(until_date)
+                    rrule += f";UNTIL={until_date.strftime('%Y%m%dT%H%M%SZ')}"
+                
+                # 添加重复次数
+                if recurring.get('count'):
+                    rrule += f";COUNT={recurring['count']}"
+                
+                # 添加星期几（仅用于每周重复）
+                if recurring.get('frequency') == 'weekly' and recurring.get('byday'):
+                    rrule += f";BYDAY={','.join(recurring['byday'])}"
+            
             success = add_event_to_calendar(
                 self.icloud_calendar_name,
                 title,
                 start_time,
-                end_time
+                end_time,
+                rrule=rrule
             )
             if not success:
                 print(f"Warning: Failed to sync event to iCloud: {title}")
@@ -214,7 +302,6 @@ class CalendarManager:
             raise ValueError(f"Event ID {event_id} does not exist")
 
         event = self.events[event_id]
-        old_title = event.title
 
         # 更新本地事件
         if title is not None:
@@ -247,17 +334,50 @@ class CalendarManager:
             
             icloud_event = None
             for e in icloud_events:
-                if e.instance.vevent.summary.value == old_title:
+                if e.instance.vevent.summary.value == event.title:
                     icloud_event = e
                     break
             
             if icloud_event:
+                # 处理重复规则
+                rrule = None
+                if recurring:
+                    # 将重复规则转换为 iCalendar RRULE 格式
+                    if recurring.get('frequency') == 'daily':
+                        rrule = f"FREQ=DAILY"
+                    elif recurring.get('frequency') == 'weekly':
+                        rrule = f"FREQ=WEEKLY"
+                    elif recurring.get('frequency') == 'monthly':
+                        rrule = f"FREQ=MONTHLY"
+                    elif recurring.get('frequency') == 'yearly':
+                        rrule = f"FREQ=YEARLY"
+                    
+                    # 添加间隔
+                    if recurring.get('interval'):
+                        rrule += f";INTERVAL={recurring['interval']}"
+                    
+                    # 添加结束日期
+                    if recurring.get('until'):
+                        until_date = recurring['until']
+                        if isinstance(until_date, str):
+                            until_date = datetime.datetime.fromisoformat(until_date)
+                        rrule += f";UNTIL={until_date.strftime('%Y%m%dT%H%M%SZ')}"
+                    
+                    # 添加重复次数
+                    if recurring.get('count'):
+                        rrule += f";COUNT={recurring['count']}"
+                    
+                    # 添加星期几（仅用于每周重复）
+                    if recurring.get('frequency') == 'weekly' and recurring.get('byday'):
+                        rrule += f";BYDAY={','.join(recurring['byday'])}"
+
                 success = update_event_in_calendar(
                     self.icloud_calendar_name,
                     icloud_event.instance.vevent.uid.value,
                     event.title,
                     event.start_time,
-                    event.end_time
+                    event.end_time,
+                    rrule=rrule
                 )
                 if not success:
                     print(f"Warning: Failed to sync event update to iCloud: {event.title}")
@@ -966,6 +1086,7 @@ tools = [
 # Define system prompt for the ChronosLink Smart Scheduler Assistant
 system_prompt = f"""You are ChronosLink, a Smart Scheduler Assistant designed to help users manage their calendars efficiently.
 Today's date and time is {datetime.datetime.now()}. Use this as a reference for scheduling tasks.
+The of the user is William.
 
 You can help users with the following tasks:
 1. Creating, updating, and deleting calendar events
@@ -973,6 +1094,8 @@ You can help users with the following tasks:
 3. Retrieving schedule information for specific days or date ranges
 4. Managing events across multiple calendars (personal and work)
 5. Setting up reminders and recurring events
+6. Processing and understanding images and PDF documents that users upload
+7. Extracting information from uploaded documents for event creation
 
 When handling date/time information:
 - Always use ISO format (YYYY-MM-DDTHH:MM:SS) when working with tools
@@ -982,6 +1105,14 @@ When handling date/time information:
 - You can use the get_current_datetime_info tool to get the current date and time in any timezone
 - You can use the get_todays_schedule tool to directly access today's calendar events
 - If today or eg. "this afternoon" is mentioned, use the get_todays_schedule tool to get the events for today or get the time using get_current_datetime_info
+
+When handling uploaded files:
+- For images, describe what you see and use that information to assist with scheduling
+- For PDF documents, read and summarize the content, extracting any relevant dates, times, and event details
+- If the user sends an image of a schedule or calendar, help interpret it
+- If the user sends a document with meeting details, offer to create calendar events based on it
+- For PDF files containing meeting invitations, look for key information like meeting title, time, date, location, and attendees
+- When analyzing PDFs, prioritize extracting structured data that can be used for scheduling actions
 
 IMPORTANT: For event creation and updates, ensure that you have all required information before using the appropriate tool:
 - If the user provides incomplete information for creating an event, DO NOT guess or immediately use the create_event tool.
@@ -1065,7 +1196,7 @@ agent_executor = build_graph()
 
 
 # Chat function for handling user messages
-def chat(message, history, thread_id, user_id):
+def chat(message, history, thread_id, user_id, image_file=None, document_file=None):
     # Create a new thread id if not already present
     if not thread_id:
         thread_id = str(uuid.uuid4())
@@ -1073,16 +1204,108 @@ def chat(message, history, thread_id, user_id):
     # Set up the config using the session-specific thread id and user id
     config = {"configurable": {"thread_id": f"{user_id}_{thread_id}", "user_id": user_id}}
 
+    # Prepare the message content
+    content = []
+    
+    # Add text content if available
+    if message:
+        content.append({"type": "text", "text": message})
+    elif not (image_file or document_file):  # If no text and no attachments, use a default message
+        content.append({"type": "text", "text": "Hello"})
+    
+    # Process uploaded image if available
+    image_path = None
+    if image_file:
+        try:
+            # Save image file and get path
+            image_path = save_uploaded_file(image_file)
+            if image_path:
+                # Get mime type
+                mime_type = get_mime_type(image_path)
+                if mime_type and mime_type.startswith("image/"):
+                    # Encode image file to base64
+                    image_data = encode_file_to_base64(image_path)
+                    # Add image content - using correct format for OpenAI
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{image_data}"
+                        }
+                    })
+        except Exception as e:
+            print(f"Error processing image: {str(e)}")
+    
+    # Process uploaded PDF document if available
+    document_path = None
+    if document_file:
+        try:
+            # Save document file and get path
+            document_path = save_uploaded_file(document_file)
+            if document_path:
+                # Check file size (OpenAI has a limit, typically around 20-25MB)
+                file_size = os.path.getsize(document_path) / (1024 * 1024)  # Size in MB
+                if file_size > 20:
+                    print(f"PDF file too large: {file_size:.2f}MB exceeds 20MB limit")
+                    raise ValueError(f"PDF file too large: {file_size:.2f}MB exceeds 20MB limit. Please upload a smaller file.")
+                
+                # Get mime type
+                mime_type = get_mime_type(document_path)
+                if mime_type and mime_type == "application/pdf":
+                    # Encode document file to base64
+                    document_data = encode_file_to_base64(document_path)
+                    # OpenAI uses image_url with PDF data URI for PDF files
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:application/pdf;base64,{document_data}",
+                            "detail": "high"
+                        }
+                    })
+                else:
+                    raise ValueError(f"Invalid file type: {mime_type}. Only PDF files are supported.")
+        except Exception as e:
+            print(f"Error processing document: {str(e)}")
+            # If error occurs during processing, append error message to content
+            content.append({"type": "text", "text": f"Error processing uploaded document: {str(e)}"})
+            
+            # Clean up file if it was created
+            if document_path and os.path.exists(document_path):
+                try:
+                    os.remove(document_path)
+                    document_path = None
+                except Exception as cleanup_error:
+                    print(f"Error removing temporary file after processing error: {str(cleanup_error)}")
+    
+    # Create human message with multimodal content
+    human_message = HumanMessage(content=content)
+    
     # Append the user's message and a placeholder for the bot's response to the chat history
-    history = history + [{"role": "user", "content": message}, {"role": "assistant", "content": ""}]
+    # Display a simplified version in history (only text)
+    if image_file and document_file:
+        display_message = message or "Sent image and document"
+    elif image_file:
+        display_message = message or "Sent image"
+    elif document_file:
+        display_message = message or "Sent document"
+    else:
+        display_message = message
+        
+    history = history + [{"role": "user", "content": display_message}, {"role": "assistant", "content": ""}]
     response_index = len(history) - 1  # Index of the bot's response in history
 
     full_response = ""
     tool_calls = []
+    
+    # Clean up temporary files after processing
+    files_to_cleanup = []
+    if image_path:
+        files_to_cleanup.append(image_path)
+    if document_path:
+        files_to_cleanup.append(document_path)
 
     # Stream the output from the backend in chunks
     for chunk in agent_executor.stream(
-            {"messages": [HumanMessage(content=message)]},
+            {"messages": [human_message]},
             config,
             stream_mode="values",
     ):
@@ -1103,6 +1326,9 @@ def chat(message, history, thread_id, user_id):
             history[response_index] = {"role": "assistant", "content": full_response}
             # Yield the updated chat history and tool calls
             yield history, thread_id, tool_calls
+    
+    # Clean up temporary files after completion
+    cleanup_temp_files(files_to_cleanup)
 
 
 # Build the Gradio interface
@@ -1114,9 +1340,10 @@ with gr.Blocks() as demo:
     tool_calls_history = gr.State([])  # State to store tool calls history
 
     # Header
-    gr.Markdown("# ChronosLink: Smart Scheduler Assistant")
+    gr.Markdown("# ChronosLink Smart Scheduler Assistant")
     gr.Markdown(
-        "Manage your calendar with natural language. Ask me to schedule events, find free time, or check your agenda.")
+        "Manage your calendar with natural language. Ask me to schedule events, find free time, or check your agenda."
+    )
 
     # User authentication section
     with gr.Row():
@@ -1142,6 +1369,9 @@ with gr.Blocks() as demo:
 
             # Chat interface
             chatbot = gr.Chatbot(height=500, type="messages")
+            
+            # Status display
+            status_display = gr.Markdown("")
 
             with gr.Row():
                 msg_input = gr.Textbox(
@@ -1150,6 +1380,20 @@ with gr.Blocks() as demo:
                 )
                 send_btn = gr.Button("Send", scale=1)
 
+            # File and image uploads
+            with gr.Row():
+                image_upload = gr.Image(
+                    label="Upload Image (JPG/PNG files)",
+                    type="filepath",
+                    elem_id="image_upload"
+                )
+                document_upload = gr.File(
+                    label="Upload Document (PDF files only, max 20MB)",
+                    type="filepath",
+                    file_types=[".pdf"],
+                    visible=False
+                )
+
             # Voice input
             with gr.Row():
                 audio_input = gr.Audio(
@@ -1157,7 +1401,8 @@ with gr.Blocks() as demo:
                     type="filepath",
                     label="Voice Input"
                 )
-                send_audio_btn = gr.Button("Send Voice Message")
+                # Make send voice button invisible since it auto-sends now
+                send_audio_btn = gr.Button("Send Voice Message", visible=False)
 
             clear_btn = gr.Button("Clear Chat")
 
@@ -1303,21 +1548,109 @@ with gr.Blocks() as demo:
 
 
     # Process audio input
-    def process_audio_input(audio_path):
+    def process_audio_input(audio_path, history, thread_id, user_id, image_file, document_file, voice_enabled, voice, tool_calls):
         if not audio_path:
-            return "Please record a voice message first."
+            return None, history, thread_id, image_file, document_file, None, tool_calls, "Please record a voice message first."
 
-        transcribed_text, success = speech_to_text(audio_path)
-        if success and transcribed_text:
-            return transcribed_text
-        else:
-            return "Sorry, I couldn't understand the audio. Please try again."
+        # Create a file cleanup list
+        files_to_cleanup = []
+        if audio_path:
+            files_to_cleanup.append(audio_path)  # Add original recording file to cleanup list
+        
+        try:
+            # Convert speech to text
+            transcribed_text, success = speech_to_text(audio_path)
+            
+            if success and transcribed_text:
+                # Update status display with transcribed text
+                status_msg = f"Voice transcribed to: \"{transcribed_text}\", processing request..."
+                
+                # Begin generating response - DON'T manually update history with user message
+                # Let the chat function handle adding it to history
+                try:
+                    # Create chat generator - using original history (not updated)
+                    chat_generator = chat(transcribed_text, history, thread_id, user_id, image_file, document_file)
+                    
+                    # Get first response
+                    first_response = next(chat_generator)
+                    history_update, thread_id_update, tool_calls_update = first_response
+                    
+                    # Merge tool calls history
+                    if tool_calls_update:
+                        merged_tool_calls = tool_calls.copy() if tool_calls else []
+                        merged_tool_calls.extend(tool_calls_update)
+                        # Limit to last 20 calls to prevent excessive growth
+                        if len(merged_tool_calls) > 20:
+                            merged_tool_calls = merged_tool_calls[-20:]
+                    else:
+                        merged_tool_calls = tool_calls
+                    
+                    # If voice is enabled and valid AI response exists
+                    audio_path_for_response = None
+                    if voice_enabled and history_update and len(history_update) >= 2:
+                        try:
+                            last_response = history_update[-1]["content"]
+                            # Generate voice for last AI response - map OpenAI voice to Azure voice
+                            azure_voice = map_voice_style(voice)
+                            audio_data, voice_success = text_to_speech(last_response, azure_voice)
+                            if voice_success:
+                                # Save to temporary file
+                                audio_path_for_response = save_audio_to_temp_file(audio_data)
+                                if audio_path_for_response:
+                                    # Add generated voice file to cleanup list (will be cleaned up later by system)
+                                    files_to_cleanup.append(audio_path_for_response)
+                        except Exception as e:
+                            print(f"Error generating voice response: {str(e)}")
+                    
+                    # Clean up temporary files (recording file, but not the just-generated voice file)
+                    for file_path in files_to_cleanup:
+                        if file_path and file_path != audio_path_for_response and os.path.exists(file_path):
+                            try:
+                                os.remove(file_path)
+                            except Exception as e:
+                                print(f"Error cleaning up temporary file {file_path}: {str(e)}")
+                    
+                    # Return empty string for msg_input (to clear input) 
+                    # Return the updated history from chat
+                    return "", history_update, thread_id_update, None, None, audio_path_for_response, merged_tool_calls, ""
+                    
+                except StopIteration:
+                    # No response generated, clean up temporary files
+                    cleanup_temp_files(files_to_cleanup)
+                    # Return original history
+                    return "", history, thread_id, image_file, document_file, None, tool_calls, "Error processing request"
+                except Exception as e:
+                    # Error occurred, clean up temporary files
+                    cleanup_temp_files(files_to_cleanup)
+                    # Return error message
+                    error_msg = f"Error processing voice request: {str(e)}"
+                    print(error_msg)
+                    return "", history, thread_id, image_file, document_file, None, tool_calls, error_msg
+            else:
+                # Speech recognition failed, clean up temporary files
+                cleanup_temp_files(files_to_cleanup)
+                return None, history, thread_id, image_file, document_file, None, tool_calls, "Sorry, I couldn't understand the audio. Please try again."
+        except Exception as e:
+            # Exception occurred, clean up temporary files
+            cleanup_temp_files(files_to_cleanup)
+            error_msg = f"Error processing audio: {str(e)}"
+            print(error_msg)
+            return None, history, thread_id, image_file, document_file, None, tool_calls, error_msg
 
 
+    # 修改audio_input的change事件处理
     audio_input.change(
         process_audio_input,
-        inputs=[audio_input],
-        outputs=[msg_input]
+        inputs=[
+            audio_input, chatbot, thread_state, user_id_state, 
+            image_upload, document_upload, voice_output_enabled, 
+            voice_type, tool_calls_history
+        ],
+        outputs=[
+            msg_input, chatbot, thread_state, image_upload, 
+            document_upload, ai_audio_output, tool_calls_history, 
+            status_display
+        ]
     )
 
 
@@ -1342,65 +1675,139 @@ with gr.Blocks() as demo:
     )
 
 
-    # Chat function with voice output and tool calls tracking
-    def chat_with_voice(message, history, thread_id, user_id, voice_enabled, voice, tool_calls):
-        # Create base generator
-        chat_generator = chat(message, history, thread_id, user_id)
+    # Show upload status
+    def update_status(image, document):
+        status = []
+        if image:
+            status.append("Image uploaded successfully!")
+        if document:
+            status.append("PDF document uploaded successfully!")
+        
+        if status:
+            return " ".join(status) + " Click Send to process with your message."
+        return ""
+        
+    image_upload.change(
+        update_status,
+        inputs=[image_upload, document_upload],
+        outputs=[status_display]
+    )
+    
+    document_upload.change(
+        update_status,
+        inputs=[image_upload, document_upload],
+        outputs=[status_display]
+    )
+    
+    # Chat function with voice output, file uploads, and tool calls tracking
+    def chat_with_voice(message, history, thread_id, user_id, image_file, document_file, voice_enabled, voice, tool_calls):
+        # Update status to show processing
+        yield history, thread_id, None, None, None, tool_calls, "Processing your request..."
+        
+        try:
+            # Create base generator
+            chat_generator = chat(message, history, thread_id, user_id, image_file, document_file)
 
-        # Process each response
-        for history_update, thread_id_update, tool_calls_update in chat_generator:
-            # If this is the final response and voice is enabled
-            if voice_enabled:
-                last_response = history_update[-1]["content"]
-                # Generate voice for the last AI response
-                audio_data, success = text_to_speech(last_response, voice)
-                if success:
-                    # Save to temporary file
-                    audio_path = save_audio_to_temp_file(audio_data)
-                    if audio_path:
-                        # Return everything including updated tool calls and autoplay the audio
-                        yield history_update, thread_id_update, audio_path, tool_calls_update
-                        # Clean up the temporary file after a delay
-                        cleanup_temp_file(audio_path)
-                        continue
+            # Process each response
+            for history_update, thread_id_update, tool_calls_update in chat_generator:
+                # Merge tool calls history
+                if tool_calls_update:
+                    merged_tool_calls = tool_calls.copy() if tool_calls else []
+                    merged_tool_calls.extend(tool_calls_update)
+                    # Limit to last 20 calls to prevent excessive growth
+                    if len(merged_tool_calls) > 20:
+                        merged_tool_calls = merged_tool_calls[-20:]
+                else:
+                    merged_tool_calls = tool_calls
+                
+                # If this is the final response and voice is enabled
+                if voice_enabled and history_update and len(history_update) >= 2:
+                    try:
+                        last_response = history_update[-1]["content"]
+                        # Generate voice for the last AI response - map OpenAI voice to Azure voice
+                        azure_voice = map_voice_style(voice)
+                        audio_data, success = text_to_speech(last_response, azure_voice)
+                        if success:
+                            # Save to temporary file
+                            audio_path = save_audio_to_temp_file(audio_data)
+                            if audio_path:
+                                # Return everything including updated tool calls and autoplay the audio
+                                yield history_update, thread_id_update, None, None, audio_path, merged_tool_calls, ""
+                                # Clean up the temporary file after a delay
+                                cleanup_temp_file(audio_path)
+                                continue
+                    except Exception as e:
+                        print(f"Error generating voice response: {str(e)}")
 
-            # If voice was disabled or failed, just return the text response
-            yield history_update, thread_id_update, None, tool_calls_update
+                # If voice was disabled or failed, just return the text response
+                yield history_update, thread_id_update, None, None, None, merged_tool_calls, ""
+        except Exception as e:
+            error_message = f"Error processing your request: {str(e)}"
+            print(error_message)
+            # Return error message to the user
+            if history and len(history) > 0:
+                current_history = history.copy()
+                if len(current_history) >= 2 and current_history[-1]["role"] == "assistant":
+                    current_history[-1]["content"] = error_message
+                else:
+                    current_history.append({"role": "assistant", "content": error_message})
+                yield current_history, thread_id, None, None, None, tool_calls, ""
+            else:
+                yield [{"role": "assistant", "content": error_message}], thread_id, None, None, None, tool_calls, ""
 
-
-    # The click event for text input
+    # The click event for text/files input
     send_btn.click(
         chat_with_voice,
-        inputs=[msg_input, chatbot, thread_state, user_id_state, voice_output_enabled, voice_type, tool_calls_history],
-        outputs=[chatbot, thread_state, ai_audio_output, tool_calls_history],
+        inputs=[msg_input, chatbot, thread_state, user_id_state, image_upload, document_upload, voice_output_enabled, voice_type, tool_calls_history],
+        outputs=[chatbot, thread_state, image_upload, document_upload, ai_audio_output, tool_calls_history, status_display],
     )
 
     # The click event for voice input
     send_audio_btn.click(
         chat_with_voice,
-        inputs=[msg_input, chatbot, thread_state, user_id_state, voice_output_enabled, voice_type, tool_calls_history],
-        outputs=[chatbot, thread_state, ai_audio_output, tool_calls_history],
+        inputs=[msg_input, chatbot, thread_state, user_id_state, image_upload, document_upload, voice_output_enabled, voice_type, tool_calls_history],
+        outputs=[chatbot, thread_state, image_upload, document_upload, ai_audio_output, tool_calls_history, status_display],
     )
 
     # Allow sending messages with Enter key
     msg_input.submit(
         chat_with_voice,
-        inputs=[msg_input, chatbot, thread_state, user_id_state, voice_output_enabled, voice_type, tool_calls_history],
-        outputs=[chatbot, thread_state, ai_audio_output, tool_calls_history],
+        inputs=[msg_input, chatbot, thread_state, user_id_state, image_upload, document_upload, voice_output_enabled, voice_type, tool_calls_history],
+        outputs=[chatbot, thread_state, image_upload, document_upload, ai_audio_output, tool_calls_history, status_display],
     )
 
     # Clear input after sending
     send_btn.click(lambda: "", None, msg_input)
     msg_input.submit(lambda: "", None, msg_input)
+    send_btn.click(lambda: None, None, image_upload)
+    send_btn.click(lambda: None, None, document_upload)
+    send_btn.click(lambda: "", None, status_display)
 
     # Clear the chat history
     clear_btn.click(
-        lambda: ([], str(uuid.uuid4()), None, []),
+        lambda: ([], str(uuid.uuid4()), None, None, None, [], ""),
         None,
-        [chatbot, thread_state, ai_audio_output, tool_calls_history]
+        [chatbot, thread_state, image_upload, document_upload, ai_audio_output, tool_calls_history, status_display]
     )
+
+# Cleanup when application closes (register cleanup as atexit function)
+import atexit
+
+def cleanup_all_temp_files():
+    """Clean up all temporary files in the temp directory when the application closes"""
+    try:
+        for file in TEMP_DIR.glob("*"):
+            if file.is_file():
+                try:
+                    file.unlink()
+                except Exception as e:
+                    print(f"Error removing temporary file {file}: {str(e)}")
+    except Exception as e:
+        print(f"Error cleaning up temporary files: {str(e)}")
+
+# Register the cleanup function
+atexit.register(cleanup_all_temp_files)
 
 # Launch the Gradio app
 if __name__ == "__main__":
-    print(system_prompt)
     demo.launch()
